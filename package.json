@@ -17,14 +17,20 @@
     "build:renderer": "vite build",
     "electron": "electron .",
     "electron:dev": "concurrently \"npm run dev:main\" \"npm run dev:renderer\" \"wait-on http://localhost:5173 && electron .\"",
-    "package": "npm run build && electron-builder --win",
-    "package:dir": "npm run build && electron-builder --win --dir",
+
+    "package:win":    "npm run build && electron-builder --win",
+    "package:mac":    "npm run build && electron-builder --mac",
+    "package:linux":  "npm run build && electron-builder --linux",
+    "package:all":    "npm run build && electron-builder --win --mac --linux",
+    "package:win:dir":"npm run build && electron-builder --win --dir",
+
     "prisma:generate": "prisma generate",
-    "prisma:push": "prisma db push",
-    "prisma:studio": "prisma studio",
-    "test": "jest --passWithNoTests",
-    "lint": "eslint src --ext .ts,.tsx",
-    "typecheck": "tsc --noEmit"
+    "prisma:push":     "prisma db push",
+    "prisma:studio":   "prisma studio",
+    "test":            "jest --passWithNoTests",
+    "lint":            "eslint src --ext .ts,.tsx",
+    "typecheck":       "tsc --noEmit",
+    "seed-admin":      "node scripts/seed-admin.js"
   },
   "dependencies": {
     "@monaco-editor/react": "4.6.0",
@@ -34,7 +40,6 @@
     "axios": "1.6.5",
     "dayjs": "1.11.10",
     "electron-log": "5.1.1",
-    "electron-store": "8.1.0",
     "electron-updater": "6.1.7",
     "monaco-editor": "0.45.0",
     "recharts": "2.10.3",
@@ -72,36 +77,94 @@
     "appId": "dev.khmerai.coding-agent",
     "productName": "Khmer AI Coding Agent",
     "copyright": "Copyright © 2024 Khmer AI Team",
+
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "resources"
     },
+
     "files": [
       "dist/**/*",
-      "prisma/**/*",
+      "prisma/schema.prisma",
       "resources/**/*",
       "node_modules/.prisma/**/*",
       "node_modules/@prisma/client/**/*"
     ],
+
     "extraResources": [
-      {
-        "from": "prisma",
-        "to": "prisma"
-      }
+      { "from": "prisma/schema.prisma", "to": "prisma/schema.prisma" }
     ],
+
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/.prisma/**",
+      "node_modules/@prisma/client/**"
+    ],
+
+    "afterSign": "scripts/notarize.js",
+
     "win": {
+      "icon": "resources/icon.ico",
       "target": [
-        {
-          "target": "nsis",
-          "arch": ["x64"]
-        }
-      ]
+        { "target": "nsis",      "arch": ["x64"] },
+        { "target": "portable",  "arch": ["x64"] }
+      ],
+      "publisherName": "Khmer AI Team",
+      "verifyUpdateCodeSignature": false
     },
+
     "nsis": {
       "oneClick": false,
+      "allowElevation": true,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Khmer AI Coding Agent"
+      "shortcutName": "Khmer AI Coding Agent",
+      "installerIcon": "resources/icon.ico",
+      "uninstallerIcon": "resources/icon.ico",
+      "deleteAppDataOnUninstall": false
+    },
+
+    "mac": {
+      "icon": "resources/icon.icns",
+      "category": "public.app-category.developer-tools",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "resources/entitlements.mac.plist",
+      "entitlementsInherit": "resources/entitlements.mac.plist",
+      "target": [
+        { "target": "dmg",  "arch": ["x64", "arm64"] },
+        { "target": "zip",  "arch": ["x64", "arm64"] }
+      ]
+    },
+
+    "dmg": {
+      "title": "Khmer AI Coding Agent",
+      "icon": "resources/icon.icns",
+      "background": "resources/dmg-background.png",
+      "window": { "width": 540, "height": 380 },
+      "contents": [
+        { "x": 150, "y": 200, "type": "file" },
+        { "x": 390, "y": 200, "type": "link", "path": "/Applications" }
+      ]
+    },
+
+    "linux": {
+      "icon": "resources/icon.png",
+      "category": "Development",
+      "description": "Khmer AI Coding Agent — AI Desktop Platform",
+      "target": [
+        { "target": "AppImage", "arch": ["x64"] },
+        { "target": "deb",      "arch": ["x64"] },
+        { "target": "rpm",      "arch": ["x64"] }
+      ],
+      "maintainer": "Khmer AI Team <support@khmerai.dev>"
+    },
+
+    "publish": {
+      "provider": "github",
+      "owner": "cm5722254-beep",
+      "repo": "AI-Agen-Kh"
     }
   },
   "prisma": {

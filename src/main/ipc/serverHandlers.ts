@@ -164,3 +164,66 @@ export function registerServerHandlers(ipcMain: IpcMain, getWindow: () => Browse
     return { success: true, data: { running } }
   })
 }
+
+// ── restartServer — exported for main/index.ts ────────────────────────────
+export async function restartServer(
+  serverId: string,
+  win: BrowserWindow | null
+): Promise<IpcResponse> {
+  try {
+    const db = getPrismaClient()
+    const record = await db.serverProcess.findUnique({ where: { id: serverId } })
+    if (!record) return { success: false, error: 'Server record រកមិនឃើញ' }
+
+    // Stop first if running
+    const entry = runningProcesses.get(serverId)
+    if (entry) {
+      await new Promise<void>((resolve) => {
+        treeKill(entry.process.pid!, 'SIGTERM', () => resolve())
+      })
+      runningProcesses.delete(serverId)
+    }
+
+    // Short delay before restart
+    await new Promise(r => setTimeout(r, 500))
+
+    // Re-spawn with same command
+    const parts = record.command.split(' ')
+    const child = spawn(parts[0], parts.slice(1), {
+      cwd: process.cwd(),
+      shell: true,
+      env: { ...process.env, PORT: record.port ? String(record.port) : undefined },
+    }) as ChildProcess
+
+    await db.serverProcess.update({
+      where: { id: serverId },
+      data: { pid: child.pid, status: 'RUNNING', startedAt: new Date(), stoppedAt: null },
+    })
+
+    runningProcesses.set(serverId, { process: child, logs: [], port: record.port ?? undefined })
+
+    child.stdout?.on('data', (d: Buffer) => {
+      const text = d.toString()
+      runningProcesses.get(serverId)?.logs.push(text)
+      win?.webContents.send(`server:log:${serverId}`, text)
+    })
+    child.stderr?.on('data', (d: Buffer) => {
+      const text = `[ERR] ${d.toString()}`
+      runningProcesses.get(serverId)?.logs.push(text)
+      win?.webContents.send(`server:log:${serverId}`, text)
+    })
+    child.on('exit', async (code) => {
+      runningProcesses.delete(serverId)
+      await db.serverProcess.update({
+        where: { id: serverId },
+        data: { status: code === 0 ? 'STOPPED' : 'ERROR', stoppedAt: new Date() },
+      })
+      win?.webContents.send('server:statusChange', { id: serverId, status: code === 0 ? 'STOPPED' : 'ERROR' })
+    })
+
+    logger.server(`Server restarted: ${record.name} (PID ${child.pid})`)
+    return { success: true, data: { pid: child.pid } }
+  } catch (err: any) {
+    return { success: false, error: err.message }
+  }
+}

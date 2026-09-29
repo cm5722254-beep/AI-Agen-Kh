@@ -1,0 +1,41 @@
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+
+# Android
+android/.gradle/
+android/captures/
+android/gradlew
+android/gradlew.bat
+android/local.properties
+android/app/google-services.json
+android/key.properties
+android/*.keystore
+android/*.jks
+
+# iOS
+ios/Flutter/.last_build_id
+ios/.symlinks/
+ios/Pods/
+ios/Runner.xcworkspace/xcshareddata/WorkspaceSettings.xcsettings
+ios/Flutter/App.framework
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/Flutter/Generated.xcconfig
+ios/Flutter/ephemeral/
+
+# IntelliJ / Android Studio
+*.iml
+.idea/
+.gradle/
+
+# macOS
+.DS_Store
+
+# Sensitive
+*.env

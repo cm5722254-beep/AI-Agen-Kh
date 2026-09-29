@@ -3,6 +3,8 @@
  * Planning → Inspect Files → Generate Plan → Modify Files → Run Commands → Verify
  */
 import { v4 as uuid } from 'uuid'
+import { spawn } from 'child_process'
+import path from 'path'
 import { chatStream } from '../ai/aiService'
 import { readFile, writeFile, editFile, deleteFile, createFolder, listFiles, searchCode } from './tools/fileTools'
 import { logger } from '../logging/logger'
@@ -224,13 +226,90 @@ export class AgentService {
             args.extensions as string[] | undefined
           )
 
+        case 'run_command':
+          return await this.runCommand(
+            String(args.command ?? ''),
+            String(args.cwd ?? options.projectPath ?? process.cwd()),
+            options
+          )
+
+        case 'install_package':
+          return await this.runCommand(
+            `npm install ${String(args.package ?? '')}`,
+            String(args.cwd ?? options.projectPath ?? process.cwd()),
+            options
+          )
+
+        case 'git_status':
+          return await this.runCommand('git status --short', String(args.path ?? options.projectPath ?? '.'), options)
+
+        case 'git_diff':
+          return await this.runCommand('git diff', String(args.path ?? options.projectPath ?? '.'), options)
+
+        case 'git_commit':
+          return await this.runCommand(
+            `git add -A && git commit -m "${String(args.message ?? 'AI commit').replace(/"/g, "'")}"`,
+            String(args.path ?? options.projectPath ?? '.'),
+            options
+          )
+
         default:
-          return { error: `Tool "${tool}" មិនទាន់ Implement នៅឡើយ` }
+          return { error: `Tool "${tool}" មិនទាន់ Support ទេ` }
       }
     } catch (err: any) {
       logger.error(`Tool execution error [${tool}]: ${err.message}`)
       return { error: err.message }
     }
+  }
+  private async runCommand(
+    command: string,
+    cwd: string,
+    options: AgentRunOptions
+  ): Promise<{ stdout: string; stderr: string; exitCode: number; error?: string }> {
+    return new Promise((resolve) => {
+      const MAX_OUTPUT = 8000 // chars
+      let stdout = ''
+      let stderr = ''
+
+      options.onStatus('executing', `ដំណើរការ: ${command.slice(0, 60)}`)
+      logger.info(`Agent run_command: ${command} (cwd: ${cwd})`)
+
+      // Use shell:true so npm/npx/git etc. work on all platforms
+      const shell = process.platform === 'win32' ? 'powershell.exe' : '/bin/bash'
+      const shellFlag = process.platform === 'win32' ? '-Command' : '-c'
+
+      const child = spawn(shell, [shellFlag, command], {
+        cwd,
+        shell: false,
+        env: { ...process.env, FORCE_COLOR: '0' },
+      })
+
+      child.stdout?.on('data', (d: Buffer) => {
+        stdout += d.toString()
+        if (stdout.length > MAX_OUTPUT) stdout = stdout.slice(-MAX_OUTPUT)
+      })
+      child.stderr?.on('data', (d: Buffer) => {
+        stderr += d.toString()
+        if (stderr.length > MAX_OUTPUT) stderr = stderr.slice(-MAX_OUTPUT)
+      })
+
+      child.on('error', (err) => {
+        resolve({ stdout, stderr, exitCode: -1, error: err.message })
+      })
+
+      child.on('close', (code) => {
+        logger.info(`Command exited (${code}): ${command.slice(0, 60)}`)
+        resolve({ stdout, stderr, exitCode: code ?? 0 })
+      })
+
+      // Timeout safety — kill after 120 seconds
+      const timeout = setTimeout(() => {
+        child.kill()
+        resolve({ stdout, stderr, exitCode: -1, error: 'Command timed out (120s)' })
+      }, 120_000)
+
+      child.on('close', () => clearTimeout(timeout))
+    })
   }
 }
 

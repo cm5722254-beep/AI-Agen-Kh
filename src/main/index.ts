@@ -1,12 +1,13 @@
 import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron'
 import path from 'path'
+import os from 'os'
 import { initDatabase } from '../core/database/client'
 import { logger } from '../core/logging/logger'
 import { registerAuthHandlers } from './ipc/authHandlers'
 import { registerProjectHandlers } from './ipc/projectHandlers'
 import { registerAiHandlers } from './ipc/aiHandlers'
 import { registerFileHandlers } from './ipc/fileHandlers'
-import { registerServerHandlers } from './ipc/serverHandlers'
+import { registerServerHandlers, restartServer } from './ipc/serverHandlers'
 import { registerUsageHandlers } from './ipc/usageHandlers'
 import { registerAdminHandlers } from './ipc/adminHandlers'
 import { registerSettingsHandlers } from './ipc/settingsHandlers'
@@ -108,6 +109,33 @@ app.whenReady().then(async () => {
   })
 
   ipcMain.handle(IPC_CHANNELS.APP_VERSION, () => app.getVersion())
+
+  // ── SYSTEM_INFO handler ──────────────────────────────────────────────────
+  ipcMain.handle(IPC_CHANNELS.SYSTEM_INFO, async () => {
+    return {
+      platform:      process.platform,          // 'win32' | 'darwin' | 'linux'
+      arch:          process.arch,              // 'x64' | 'arm64' etc.
+      hostname:      os.hostname(),
+      cpus:          os.cpus().length,
+      totalMemMB:    Math.round(os.totalmem() / 1024 / 1024),
+      freeMemMB:     Math.round(os.freemem()  / 1024 / 1024),
+      nodeVersion:   process.versions.node,
+      electronVersion: process.versions.electron,
+      appVersion:    app.getVersion(),
+      userDataPath:  app.getPath('userData'),
+      documentsPath: app.getPath('documents'),
+    }
+  })
+
+  // ── SERVER_RESTART handler ───────────────────────────────────────────────
+  ipcMain.handle(IPC_CHANNELS.SERVER_RESTART, async (_e, serverId: string) => {
+    try {
+      const result = await restartServer(serverId, mainWindow)
+      return result
+    } catch (err: any) {
+      return { success: false, error: err.message }
+    }
+  })
 
   createWindow()
 

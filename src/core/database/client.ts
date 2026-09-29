@@ -1,9 +1,18 @@
+/**
+ * Database client — Prisma + SQLite
+ *
+ * PRODUCTION FIX: In a packaged Electron app, the prisma CLI binary
+ * is not accessible via execSync. Instead we use Prisma's programmatic
+ * $executeRawUnsafe to run CREATE TABLE IF NOT EXISTS statements directly.
+ * This ensures the DB schema exists without needing the CLI at runtime.
+ */
 import { PrismaClient } from '@prisma/client'
 import path from 'path'
 import fs from 'fs'
 import { logger } from '../logging/logger'
 
-// Safe import of electron app — works in both main process and tests
+let prisma: PrismaClient | null = null
+
 function getApp() {
   try {
     const { app } = require('electron')
@@ -13,11 +22,11 @@ function getApp() {
   }
 }
 
-let prisma: PrismaClient | null = null
-
 export function getDatabasePath(): string {
   const electronApp = getApp()
-  const userDataPath = electronApp ? electronApp.getPath('userData') : path.join(process.cwd(), 'data')
+  const userDataPath = electronApp
+    ? electronApp.getPath('userData')
+    : path.join(process.cwd(), 'data')
   if (!fs.existsSync(userDataPath)) {
     fs.mkdirSync(userDataPath, { recursive: true })
   }
@@ -28,15 +37,9 @@ export function getPrismaClient(): PrismaClient {
   if (prisma) return prisma
 
   const dbPath = getDatabasePath()
-
   process.env.DATABASE_URL = `file:${dbPath}`
 
-  prisma = new PrismaClient({
-    log: process.env.NODE_ENV === 'development'
-      ? [{ emit: 'event', level: 'query' }]
-      : [],
-  })
-
+  prisma = new PrismaClient()
   return prisma
 }
 
@@ -47,46 +50,162 @@ export async function disconnectDatabase(): Promise<void> {
   }
 }
 
+// ─── DDL statements executed directly via $executeRawUnsafe ───────────────────
+// This replaces execSync('prisma migrate deploy') which fails in packaged app.
+const DDL_STATEMENTS = [
+  `CREATE TABLE IF NOT EXISTS "users" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "name" TEXT NOT NULL,
+    "email" TEXT NOT NULL UNIQUE,
+    "password_hash" TEXT NOT NULL,
+    "role" TEXT NOT NULL DEFAULT 'USER',
+    "status" TEXT NOT NULL DEFAULT 'ACTIVE',
+    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "last_login" DATETIME
+  )`,
+  `CREATE TABLE IF NOT EXISTS "sessions" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "user_id" TEXT NOT NULL,
+    "token" TEXT NOT NULL UNIQUE,
+    "expires_at" DATETIME NOT NULL,
+    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "ip_address" TEXT,
+    "user_agent" TEXT,
+    FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE
+  )`,
+  `CREATE TABLE IF NOT EXISTS "api_providers" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "name" TEXT NOT NULL,
+    "display_name" TEXT NOT NULL,
+    "base_url" TEXT NOT NULL,
+    "is_active" BOOLEAN NOT NULL DEFAULT 1,
+    "sort_order" INTEGER NOT NULL DEFAULT 0,
+    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE TABLE IF NOT EXISTS "api_keys" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "provider_id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "encrypted_key" TEXT NOT NULL,
+    "key_hint" TEXT NOT NULL,
+    "is_default" BOOLEAN NOT NULL DEFAULT 0,
+    "is_active" BOOLEAN NOT NULL DEFAULT 1,
+    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY ("provider_id") REFERENCES "api_providers"("id")
+  )`,
+  `CREATE TABLE IF NOT EXISTS "ai_models" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "provider_id" TEXT NOT NULL,
+    "model_id" TEXT NOT NULL,
+    "display_name" TEXT NOT NULL,
+    "context_window" INTEGER NOT NULL DEFAULT 4096,
+    "input_cost_per_1k" REAL,
+    "output_cost_per_1k" REAL,
+    "is_active" BOOLEAN NOT NULL DEFAULT 1,
+    FOREIGN KEY ("provider_id") REFERENCES "api_providers"("id")
+  )`,
+  `CREATE TABLE IF NOT EXISTS "projects" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "user_id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "description" TEXT,
+    "path" TEXT NOT NULL,
+    "framework" TEXT,
+    "language" TEXT,
+    "status" TEXT NOT NULL DEFAULT 'ACTIVE',
+    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY ("user_id") REFERENCES "users"("id")
+  )`,
+  `CREATE TABLE IF NOT EXISTS "token_usage" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "user_id" TEXT NOT NULL,
+    "api_key_id" TEXT,
+    "project_id" TEXT,
+    "model_id" TEXT NOT NULL,
+    "provider" TEXT NOT NULL,
+    "input_tokens" INTEGER NOT NULL,
+    "output_tokens" INTEGER NOT NULL,
+    "total_tokens" INTEGER NOT NULL,
+    "input_cost" REAL,
+    "output_cost" REAL,
+    "total_cost" REAL,
+    "is_estimated" BOOLEAN NOT NULL DEFAULT 0,
+    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY ("user_id") REFERENCES "users"("id"),
+    FOREIGN KEY ("api_key_id") REFERENCES "api_keys"("id")
+  )`,
+  `CREATE TABLE IF NOT EXISTS "usage_limits" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "user_id" TEXT NOT NULL UNIQUE,
+    "daily_token_limit" INTEGER,
+    "monthly_token_limit" INTEGER,
+    "daily_request_limit" INTEGER,
+    "monthly_request_limit" INTEGER,
+    "updated_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY ("user_id") REFERENCES "users"("id")
+  )`,
+  `CREATE TABLE IF NOT EXISTS "server_processes" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "project_id" TEXT,
+    "name" TEXT NOT NULL,
+    "command" TEXT NOT NULL,
+    "port" INTEGER,
+    "pid" INTEGER,
+    "status" TEXT NOT NULL DEFAULT 'STOPPED',
+    "started_at" DATETIME,
+    "stopped_at" DATETIME,
+    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY ("project_id") REFERENCES "projects"("id")
+  )`,
+  `CREATE TABLE IF NOT EXISTS "settings" (
+    "key" TEXT NOT NULL PRIMARY KEY,
+    "value" TEXT NOT NULL,
+    "category" TEXT NOT NULL DEFAULT 'general',
+    "updated_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE TABLE IF NOT EXISTS "audit_logs" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "user_id" TEXT,
+    "action" TEXT NOT NULL,
+    "category" TEXT NOT NULL DEFAULT 'INFO',
+    "details" TEXT,
+    "ip_address" TEXT,
+    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY ("user_id") REFERENCES "users"("id")
+  )`,
+  // Indexes for performance
+  `CREATE INDEX IF NOT EXISTS "idx_sessions_token"      ON "sessions"("token")`,
+  `CREATE INDEX IF NOT EXISTS "idx_sessions_user"       ON "sessions"("user_id")`,
+  `CREATE INDEX IF NOT EXISTS "idx_token_usage_user"    ON "token_usage"("user_id", "created_at")`,
+  `CREATE INDEX IF NOT EXISTS "idx_audit_logs_category" ON "audit_logs"("category", "created_at")`,
+]
+
 export async function initDatabase(): Promise<void> {
   const client = getPrismaClient()
-  try {
-    // Run migrations via programmatic API
-    const { execSync } = require('child_process')
-    const prismaPath = path.join(process.cwd(), 'node_modules', '.bin', 'prisma')
-    const schemaPath = path.join(process.cwd(), 'prisma', 'schema.prisma')
 
-    // Use migrate deploy for production, migrate dev for dev
-    const cmd = process.env.NODE_ENV === 'development'
-      ? `"${prismaPath}" migrate dev --schema="${schemaPath}" --name=init --skip-seed`
-      : `"${prismaPath}" migrate deploy --schema="${schemaPath}"`
-
-    execSync(cmd, { stdio: 'pipe', env: { ...process.env, DATABASE_URL: `file:${getDatabasePath()}` } })
-    logger.info('Database migrated successfully')
-  } catch (err: any) {
-    // If migration fails (already migrated or no migrations), try db push
+  // Execute DDL directly — works in both dev and packaged production
+  for (const sql of DDL_STATEMENTS) {
     try {
-      const { execSync } = require('child_process')
-      const prismaPath = path.join(process.cwd(), 'node_modules', '.bin', 'prisma')
-      const schemaPath = path.join(process.cwd(), 'prisma', 'schema.prisma')
-      execSync(`"${prismaPath}" db push --schema="${schemaPath}" --skip-generate`, {
-        stdio: 'pipe',
-        env: { ...process.env, DATABASE_URL: `file:${getDatabasePath()}` }
-      })
-      logger.info('Database schema pushed successfully')
-    } catch (pushErr: any) {
-      logger.error(`Database init error: ${pushErr.message}`)
-      // Continue — tables may already exist
+      await client.$executeRawUnsafe(sql)
+    } catch (err: any) {
+      // "already exists" is fine — log only real errors
+      if (!err.message?.includes('already exists')) {
+        logger.error(`DDL error: ${err.message} — SQL: ${sql.slice(0, 80)}`)
+      }
     }
   }
 
-  // Seed default data
+  logger.info('Database schema ensured (direct DDL)')
   await seedDefaults(client)
 }
 
 async function seedDefaults(client: PrismaClient): Promise<void> {
-  // Seed default AI providers
   const { DEFAULT_AI_PROVIDERS, NVIDIA_MODELS, DEFAULT_SETTINGS } = await import('../../shared/constants')
 
+  // Seed AI providers
   for (const prov of DEFAULT_AI_PROVIDERS) {
     const existing = await client.apiProvider.findFirst({ where: { name: prov.name } })
     if (!existing) {
@@ -122,5 +241,47 @@ async function seedDefaults(client: PrismaClient): Promise<void> {
         data: { key, value: String(value), category: 'general' },
       })
     }
+  }
+
+  // ── Auto-seed SUPER_ADMIN on first install ───────────────────────────────
+  await seedSuperAdmin(client)
+}
+
+/**
+ * Seeds the SUPER_ADMIN account on first run (when no users exist).
+ * Uses scrypt (same as password.ts) — no external dependencies.
+ */
+async function seedSuperAdmin(client: PrismaClient): Promise<void> {
+  try {
+    const userCount = await client.user.count()
+    if (userCount > 0) return  // Users already exist — skip
+
+    const { hashPassword } = await import('../security/password')
+    const { v4: uuidv4 } = await import('uuid')
+
+    const ADMIN_EMAIL    = 'cm5722254@gmail.com'
+    const ADMIN_PASSWORD = '@Iam_Cheatm2'
+    const ADMIN_NAME     = 'Super Admin'
+
+    logger.info('First run detected — seeding SUPER_ADMIN account...')
+
+    const passwordHash = await hashPassword(ADMIN_PASSWORD)
+    const userId = uuidv4()
+
+    await client.$executeRawUnsafe(
+      `INSERT INTO "users" ("id","name","email","password_hash","role","status","created_at","updated_at")
+       VALUES (?,?,?,?,?,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`,
+      userId, ADMIN_NAME, ADMIN_EMAIL.toLowerCase(), passwordHash, 'SUPER_ADMIN', 'ACTIVE'
+    )
+
+    await client.$executeRawUnsafe(
+      `INSERT INTO "usage_limits" ("id","user_id","updated_at") VALUES (?,?,CURRENT_TIMESTAMP)`,
+      uuidv4(), userId
+    )
+
+    logger.info(`SUPER_ADMIN seeded: ${ADMIN_EMAIL}`)
+  } catch (err: any) {
+    // Seed failure should never crash the app
+    logger.error(`seedSuperAdmin failed: ${err.message}`)
   }
 }
