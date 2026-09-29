@@ -245,6 +245,9 @@ async function seedDefaults(client: PrismaClient): Promise<void> {
 
   // ── Auto-seed SUPER_ADMIN on first install ───────────────────────────────
   await seedSuperAdmin(client)
+
+  // ── Auto-seed NVIDIA API key ─────────────────────────────────────────────
+  await seedNvidiaApiKey(client)
 }
 
 /**
@@ -283,5 +286,53 @@ async function seedSuperAdmin(client: PrismaClient): Promise<void> {
   } catch (err: any) {
     // Seed failure should never crash the app
     logger.error(`seedSuperAdmin failed: ${err.message}`)
+  }
+}
+
+/**
+ * Auto-seeds the NVIDIA NIM API key on first install.
+ * Key is AES-256-GCM encrypted before storage — same path as user-added keys.
+ */
+async function seedNvidiaApiKey(client: PrismaClient): Promise<void> {
+  try {
+    // Find the NVIDIA provider
+    const nvidiaProvider = await client.apiProvider.findFirst({ where: { name: 'nvidia' } })
+    if (!nvidiaProvider) {
+      logger.warn('seedNvidiaApiKey: nvidia provider not found — skipping')
+      return
+    }
+
+    // Check if we already seeded (key hint matches)
+    const existing = await client.apiKey.findFirst({
+      where: { providerId: nvidiaProvider.id, keyHint: { contains: 'fhu' } },
+    })
+    if (existing) {
+      logger.info('NVIDIA API key already seeded — skipping')
+      return
+    }
+
+    const { encrypt, getKeyHint } = await import('../security/crypto')
+    const { v4: uuidv4 } = await import('uuid')
+
+    const NVIDIA_API_KEY = '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'
+
+    const encryptedKey = encrypt(NVIDIA_API_KEY)
+    const keyHint      = getKeyHint(NVIDIA_API_KEY)
+
+    // Clear any existing default for nvidia
+    await client.apiKey.updateMany({
+      where: { providerId: nvidiaProvider.id },
+      data: { isDefault: false },
+    })
+
+    await client.$executeRawUnsafe(
+      `INSERT INTO "api_keys" ("id","provider_id","name","encrypted_key","key_hint","is_default","is_active","created_at","updated_at")
+       VALUES (?,?,?,?,?,1,1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`,
+      uuidv4(), nvidiaProvider.id, 'NVIDIA NIM (Default)', encryptedKey, keyHint
+    )
+
+    logger.info(`NVIDIA API key seeded: ${keyHint}`)
+  } catch (err: any) {
+    logger.error(`seedNvidiaApiKey failed: ${err.message}`)
   }
 }

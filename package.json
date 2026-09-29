@@ -2,7 +2,7 @@
   "name": "khmer-ai-coding-agent",
   "version": "1.0.0",
   "description": "កម្មវិធី AI Coding Agent សម្រាប់អ្នកប្រើប្រាស់ខ្មែរ",
-  "main": "dist/main/index.js",
+  "main": "dist/main/main/index.js",
   "homepage": "./",
   "author": {
     "name": "Khmer AI Team",
@@ -104,7 +104,6 @@
     "afterSign": "scripts/notarize.js",
 
     "win": {
-      "icon": "resources/icon.ico",
       "target": [
         { "target": "nsis",      "arch": ["x64"] },
         { "target": "portable",  "arch": ["x64"] }
@@ -120,8 +119,6 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Khmer AI Coding Agent",
-      "installerIcon": "resources/icon.ico",
-      "uninstallerIcon": "resources/icon.ico",
       "deleteAppDataOnUninstall": false
     },
 
