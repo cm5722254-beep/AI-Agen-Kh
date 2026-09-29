@@ -17,6 +17,7 @@ export default defineConfig({
   ],
   base: './',
   root: 'src/renderer',
+  publicDir: resolve(__dirname, 'src/renderer/public'),
   build: {
     outDir: '../../dist/renderer',
     emptyOutDir: true,

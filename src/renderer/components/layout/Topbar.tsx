@@ -18,6 +18,7 @@ const VIEW_TITLES: Record<string, string> = {
   settings:  'ការកំណត់',
   admin:     'Admin Dashboard',
   profile:   'គណនីរបស់ខ្ញុំ',
+  khqr:      '☕ ប៉ាវ​កាហ្វេ​ Team — KHQR',
 }
 
 export default function Topbar() {

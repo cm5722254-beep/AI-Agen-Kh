@@ -5,7 +5,7 @@ import { useToast } from '../../hooks/useToast'
 import { IPC_CHANNELS } from '../../../shared/constants'
 import type { AdminStats, UserRole, UsageLimitInfo } from '../../../shared/types'
 
-type Tab = 'stats' | 'users' | 'logs'
+type Tab = 'stats' | 'users' | 'logs' | 'khqr'
 
 interface AdminUser {
   id: string
@@ -19,7 +19,7 @@ interface AdminUser {
 }
 
 export default function AdminView() {
-  const { state } = useAppState()
+  const { state, dispatch } = useAppState()
   const { invoke } = useApi()
   const toast = useToast()
   const [tab, setTab] = useState<Tab>('stats')
@@ -93,7 +93,7 @@ export default function AdminView() {
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: 'var(--bg-secondary)', borderRadius: 10, padding: 4, width: 'fit-content' }}>
-        {(['stats', 'users', 'logs'] as Tab[]).map(t => (
+        {(['stats', 'users', 'logs', 'khqr'] as Tab[]).map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -101,7 +101,7 @@ export default function AdminView() {
               padding: '6px 16px',
               borderRadius: 7,
               border: 'none',
-              background: tab === t ? 'var(--accent-primary)' : 'transparent',
+              background: tab === t ? (t === 'khqr' ? '#d97706' : 'var(--accent-primary)') : 'transparent',
               color: tab === t ? '#fff' : 'var(--text-secondary)',
               cursor: 'pointer',
               fontSize: 13,
@@ -109,7 +109,10 @@ export default function AdminView() {
               fontWeight: tab === t ? 600 : 400,
             }}
           >
-            {t === 'stats' ? '📊 Statistics' : t === 'users' ? '👥 Users' : '📋 Logs'}
+            {t === 'stats' ? '📊 Statistics'
+             : t === 'users' ? '👥 Users'
+             : t === 'logs'  ? '📋 Logs'
+             : '☕ ប៉ាវ​កាហ្វេ'}
           </button>
         ))}
       </div>
@@ -250,6 +253,33 @@ export default function AdminView() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* KHQR tab — link to full page */}
+      {tab === 'khqr' && (
+        <div className="flex flex-col items-center gap-6 py-8">
+          <div className="text-[72px]">☕</div>
+          <h2 className="text-[22px] font-bold text-amber-400">ប៉ាវ​កាហ្វេ​ Team!</h2>
+          <p className="text-[#9090b0] text-[14px] text-center max-w-[400px] leading-relaxed">
+            គម្រោង Khmer AI Coding Agent គឺជា Open-Source ។<br />
+            ការគាំទ្ររបស់អ្នកជួយ Developer ខ្មែរបន្ត Build!
+          </p>
+          <div className="flex items-center gap-3 bg-surface-700 border border-amber-500/30
+                          rounded-2xl px-6 py-4">
+            <div className="text-center">
+              <div className="text-[11px] text-[#606080] mb-1">KHQR / BAKONG / ABA</div>
+              <div className="text-[14px] font-semibold text-[#e8e8f0]">Khmer AI Team</div>
+            </div>
+          </div>
+          <button
+            className="btn btn-lg border-none text-white
+                       bg-gradient-to-r from-amber-600 to-amber-500
+                       hover:from-amber-500 hover:to-amber-400"
+            onClick={() => dispatch({ type: 'SET_VIEW', payload: 'khqr' })}
+          >
+            ☕ បើក KHQR Page
+          </button>
         </div>
       )}
 

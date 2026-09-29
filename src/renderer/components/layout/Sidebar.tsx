@@ -20,6 +20,7 @@ const NAV_ITEMS: NavItem[] = [
   { view: 'apikeys',   icon: '🔑', label: 'API Key' },
   { view: 'usage',     icon: '📈', label: 'Token Usage' },
   { view: 'settings',  icon: '⚙️', label: 'ការកំណត់' },
+  { view: 'khqr',      icon: '☕', label: 'ប៉ាវ​កាហ្វេ​ Team' },
   { view: 'admin',     icon: '👑', label: 'Admin', adminOnly: true },
 ]
 

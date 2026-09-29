@@ -16,9 +16,8 @@ import ApiKeysView from '../settings/ApiKeysView'
 import UsageView from '../usage/UsageView'
 import SettingsView from '../settings/SettingsView'
 import AdminView from '../admin/AdminView'
+import KhqrPage from '../admin/KhqrPage'
 import ProfileView from '../../pages/ProfilePage'
-
-const VIEW_MAP: Record<string, React.ReactNode> = {}
 
 export default function MainLayout() {
   const { state } = useAppState()
@@ -26,28 +25,29 @@ export default function MainLayout() {
   function renderView() {
     switch (state.currentView) {
       case 'dashboard': return <DashboardView />
-      case 'agent': return <AgentView />
-      case 'projects': return <ProjectsView />
-      case 'editor': return <EditorView />
-      case 'files': return <FilesView />
-      case 'terminal': return <TerminalView />
-      case 'server': return <ServerView />
-      case 'preview': return <PreviewView />
-      case 'apikeys': return <ApiKeysView />
-      case 'usage': return <UsageView />
-      case 'settings': return <SettingsView />
-      case 'admin': return <AdminView />
-      case 'profile': return <ProfileView />
-      default: return <DashboardView />
+      case 'agent':     return <AgentView />
+      case 'projects':  return <ProjectsView />
+      case 'editor':    return <EditorView />
+      case 'files':     return <FilesView />
+      case 'terminal':  return <TerminalView />
+      case 'server':    return <ServerView />
+      case 'preview':   return <PreviewView />
+      case 'apikeys':   return <ApiKeysView />
+      case 'usage':     return <UsageView />
+      case 'settings':  return <SettingsView />
+      case 'admin':     return <AdminView />
+      case 'khqr':      return <KhqrPage />
+      case 'profile':   return <ProfileView />
+      default:          return <DashboardView />
     }
   }
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+    <div className="flex h-screen overflow-hidden">
       <Sidebar />
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div className="flex flex-col flex-1 overflow-hidden">
         <Topbar />
-        <main style={{ flex: 1, overflow: 'auto', background: 'var(--bg-primary)' }}>
+        <main className="flex-1 overflow-auto bg-surface-900">
           {renderView()}
         </main>
       </div>

@@ -19,6 +19,7 @@ export type AppView =
   | 'settings'
   | 'admin'
   | 'profile'
+  | 'khqr'
 
 export type ToastType = 'success' | 'error' | 'warning' | 'info'
 

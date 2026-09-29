@@ -60,6 +60,7 @@ export default function DashboardView() {
     { icon: '🖥️', label: 'Terminal',    view: 'terminal' },
     { icon: '🌐', label: 'ម៉ាស៊ីនមេ',   view: 'server' },
     { icon: '🔑', label: 'API Keys',     view: 'apikeys' },
+    { icon: '☕', label: 'ប៉ាវ​កាហ្វេ',   view: 'khqr' },
   ]
 
   return (
@@ -75,7 +76,7 @@ export default function DashboardView() {
       </div>
 
       {/* Quick actions */}
-      <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 mb-6">
+      <div className="grid grid-cols-4 sm:grid-cols-7 gap-3 mb-6">
         {quickActions.map(a => (
           <button
             key={a.view}
