@@ -90,6 +90,7 @@ export const NVIDIA_MODELS = [
   { modelId: 'nvidia/llama-3.1-nemotron-51b-instruct',  displayName: 'Nemotron 51B Instruct',            contextWindow: 131072 },
   { modelId: 'nvidia/nemotron-4-340b-instruct',         displayName: 'Nemotron-4 340B Instruct',         contextWindow: 4096  },
   { modelId: 'nvidia/nemotron-mini-4b-instruct',        displayName: 'Nemotron Mini 4B',                 contextWindow: 4096  },
+  { modelId: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning', displayName: 'Nemotron 3 Nano Omni 30B Reasoning', contextWindow: 65536 },
 
   // ── Mistral / Mixtral ─────────────────────────────────────────────────────
   { modelId: 'mistralai/mixtral-8x22b-instruct-v0.1',   displayName: 'Mixtral 8x22B Instruct',           contextWindow: 65536 },

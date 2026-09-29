@@ -1,17 +1,22 @@
 /**
  * Database client — Prisma + SQLite
  *
- * PRODUCTION FIX: In a packaged Electron app, the prisma CLI binary
+ * PRODUCTION FIX 1: Use dynamic require() for PrismaClient so we can set
+ * PRISMA_QUERY_ENGINE_LIBRARY *before* the native module is loaded.
+ * Static `import` is hoisted and runs before any code — too late to set env vars.
+ *
+ * PRODUCTION FIX 2: In a packaged Electron app, the prisma CLI binary
  * is not accessible via execSync. Instead we use Prisma's programmatic
  * $executeRawUnsafe to run CREATE TABLE IF NOT EXISTS statements directly.
- * This ensures the DB schema exists without needing the CLI at runtime.
  */
-import { PrismaClient } from '@prisma/client'
 import path from 'path'
 import fs from 'fs'
 import { logger } from '../logging/logger'
 
-let prisma: PrismaClient | null = null
+// PrismaClient type only — no runtime import at module load time
+type PrismaClientType = import('@prisma/client').PrismaClient
+
+let prisma: PrismaClientType | null = null
 
 function getApp() {
   try {
@@ -33,14 +38,41 @@ export function getDatabasePath(): string {
   return path.join(userDataPath, 'khmer-ai.db')
 }
 
-export function getPrismaClient(): PrismaClient {
+export function getPrismaClient(): PrismaClientType {
   if (prisma) return prisma
 
+  // ── Step 1: Set DATABASE_URL ─────────────────────────────────────────────
   const dbPath = getDatabasePath()
   process.env.DATABASE_URL = `file:${dbPath}`
 
+  // ── Step 2: Point Prisma at the unpacked native engine BEFORE require() ──
+  // In packaged Electron, process.resourcesPath points to the resources/ dir.
+  // The asarUnpack config extracts my-prisma-client to app.asar.unpacked/.
+  const resourcesPath: string | undefined = (process as any).resourcesPath
+  if (resourcesPath) {
+    const engineFile =
+      process.platform === 'win32'
+        ? 'query_engine-windows.dll.node'
+        : process.platform === 'darwin'
+          ? 'libquery_engine-darwin.dylib.node'
+          : 'libquery_engine-linux-musl.so.node'
+
+    const enginePath = path.join(
+      resourcesPath,
+      'app.asar.unpacked',
+      'node_modules',
+      'my-prisma-client',
+      engineFile
+    )
+    process.env.PRISMA_QUERY_ENGINE_LIBRARY = enginePath
+    logger.info(`[DB] Prisma engine → ${enginePath}`)
+  }
+
+  // ── Step 3: Require PrismaClient AFTER env vars are set ──────────────────
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { PrismaClient } = require('my-prisma-client')
   prisma = new PrismaClient()
-  return prisma
+  return prisma!
 }
 
 export async function disconnectDatabase(): Promise<void> {
@@ -202,7 +234,7 @@ export async function initDatabase(): Promise<void> {
   await seedDefaults(client)
 }
 
-async function seedDefaults(client: PrismaClient): Promise<void> {
+async function seedDefaults(client: PrismaClientType): Promise<void> {
   const { DEFAULT_AI_PROVIDERS, NVIDIA_MODELS, DEFAULT_SETTINGS } = await import('../../shared/constants')
 
   // Seed AI providers
@@ -254,7 +286,7 @@ async function seedDefaults(client: PrismaClient): Promise<void> {
  * Seeds the SUPER_ADMIN account on first run (when no users exist).
  * Uses scrypt (same as password.ts) — no external dependencies.
  */
-async function seedSuperAdmin(client: PrismaClient): Promise<void> {
+async function seedSuperAdmin(client: PrismaClientType): Promise<void> {
   try {
     const userCount = await client.user.count()
     if (userCount > 0) return  // Users already exist — skip
@@ -293,7 +325,7 @@ async function seedSuperAdmin(client: PrismaClient): Promise<void> {
  * Auto-seeds the NVIDIA NIM API key on first install.
  * Key is AES-256-GCM encrypted before storage — same path as user-added keys.
  */
-async function seedNvidiaApiKey(client: PrismaClient): Promise<void> {
+async function seedNvidiaApiKey(client: PrismaClientType): Promise<void> {
   try {
     // Find the NVIDIA provider
     const nvidiaProvider = await client.apiProvider.findFirst({ where: { name: 'nvidia' } })
@@ -304,7 +336,7 @@ async function seedNvidiaApiKey(client: PrismaClient): Promise<void> {
 
     // Check if we already seeded (key hint matches)
     const existing = await client.apiKey.findFirst({
-      where: { providerId: nvidiaProvider.id, keyHint: { contains: 'fhu' } },
+      where: { providerId: nvidiaProvider.id, keyHint: { contains: 'ulZ' } },
     })
     if (existing) {
       logger.info('NVIDIA API key already seeded — skipping')
@@ -314,7 +346,7 @@ async function seedNvidiaApiKey(client: PrismaClient): Promise<void> {
     const { encrypt, getKeyHint } = await import('../security/crypto')
     const { v4: uuidv4 } = await import('uuid')
 
-    const NVIDIA_API_KEY = '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'
+    const NVIDIA_API_KEY = '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'
 
     const encryptedKey = encrypt(NVIDIA_API_KEY)
     const keyHint      = getKeyHint(NVIDIA_API_KEY)
