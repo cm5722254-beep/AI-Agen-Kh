@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+release/
+out/
+
+# Secrets — NEVER commit these
+.env
+*.env.local
+*.env.production
+encryption.key
+*.key
+
+# Database files
+prisma/dev.db
+prisma/dev.db-journal
+prisma/*.db
+prisma/*.db-shm
+prisma/*.db-wal
+data/
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/settings.json
+.idea/
+
+# Temp
+*.tmp
+*.temp

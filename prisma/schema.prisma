@@ -1,0 +1,208 @@
+// Khmer AI Coding Agent - Database Schema
+// Database: SQLite (can be migrated to PostgreSQL/MySQL)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ===================== USERS =====================
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         String   @default("USER") // SUPER_ADMIN | ADMIN | USER
+  status       String   @default("ACTIVE") // ACTIVE | DISABLED
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  lastLogin    DateTime? @map("last_login")
+
+  sessions     Session[]
+  projects     Project[]
+  tokenUsages  TokenUsage[]
+  usageLimit   UsageLimit?
+  auditLogs    AuditLog[]
+
+  @@map("users")
+}
+
+// ===================== SESSIONS =====================
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+// ===================== API PROVIDERS =====================
+
+model ApiProvider {
+  id          String   @id @default(uuid())
+  name        String   // OpenAI, Anthropic, NVIDIA, etc.
+  displayName String   @map("display_name")
+  baseUrl     String   @map("base_url")
+  isActive    Boolean  @default(true) @map("is_active")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  apiKeys ApiKey[]
+  models  AiModel[]
+
+  @@map("api_providers")
+}
+
+// ===================== API KEYS =====================
+
+model ApiKey {
+  id           String   @id @default(uuid())
+  providerId   String   @map("provider_id")
+  name         String   // User-friendly label
+  encryptedKey String   @map("encrypted_key") // AES-256 encrypted
+  keyHint      String   @map("key_hint")      // Last 4 chars only
+  isDefault    Boolean  @default(false) @map("is_default")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  provider    ApiProvider  @relation(fields: [providerId], references: [id])
+  tokenUsages TokenUsage[]
+
+  @@map("api_keys")
+}
+
+// ===================== AI MODELS =====================
+
+model AiModel {
+  id             String  @id @default(uuid())
+  providerId     String  @map("provider_id")
+  modelId        String  @map("model_id") // e.g. "meta/llama-3.1-70b-instruct"
+  displayName    String  @map("display_name")
+  contextWindow  Int     @default(4096) @map("context_window")
+  inputCostPer1k Float?  @map("input_cost_per_1k")  // USD
+  outputCostPer1k Float? @map("output_cost_per_1k") // USD
+  isActive       Boolean @default(true) @map("is_active")
+
+  provider ApiProvider @relation(fields: [providerId], references: [id])
+
+  @@map("ai_models")
+}
+
+// ===================== PROJECTS =====================
+
+model Project {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  name        String
+  description String?
+  path        String   // Absolute path on disk
+  framework   String?  // react, vue, next, django, etc.
+  language    String?  // Primary language
+  status      String   @default("ACTIVE") // ACTIVE | ARCHIVED
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user         User          @relation(fields: [userId], references: [id])
+  serverProcs  ServerProcess[]
+
+  @@map("projects")
+}
+
+// ===================== TOKEN USAGE =====================
+
+model TokenUsage {
+  id           String   @id @default(uuid())
+  userId       String   @map("user_id")
+  apiKeyId     String?  @map("api_key_id")
+  projectId    String?  @map("project_id")
+  modelId      String   @map("model_id")
+  provider     String
+  inputTokens  Int      @map("input_tokens")
+  outputTokens Int      @map("output_tokens")
+  totalTokens  Int      @map("total_tokens")
+  inputCost    Float?   @map("input_cost")
+  outputCost   Float?   @map("output_cost")
+  totalCost    Float?   @map("total_cost")
+  isEstimated  Boolean  @default(false) @map("is_estimated")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user   User    @relation(fields: [userId], references: [id])
+  apiKey ApiKey? @relation(fields: [apiKeyId], references: [id])
+
+  @@map("token_usage")
+}
+
+// ===================== USAGE LIMITS =====================
+
+model UsageLimit {
+  id                    String   @id @default(uuid())
+  userId                String   @unique @map("user_id")
+  dailyTokenLimit       Int?     @map("daily_token_limit")
+  monthlyTokenLimit     Int?     @map("monthly_token_limit")
+  dailyRequestLimit     Int?     @map("daily_request_limit")
+  monthlyRequestLimit   Int?     @map("monthly_request_limit")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("usage_limits")
+}
+
+// ===================== SERVER PROCESSES =====================
+
+model ServerProcess {
+  id        String    @id @default(uuid())
+  projectId String?   @map("project_id")
+  name      String
+  command   String
+  port      Int?
+  pid       Int?
+  status    String    @default("STOPPED") // RUNNING | STOPPED | ERROR
+  startedAt DateTime? @map("started_at")
+  stoppedAt DateTime? @map("stopped_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  project Project? @relation(fields: [projectId], references: [id])
+
+  @@map("server_processes")
+}
+
+// ===================== SETTINGS =====================
+
+model Setting {
+  key       String   @id
+  value     String
+  category  String   @default("general")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("settings")
+}
+
+// ===================== AUDIT LOGS =====================
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?  @map("user_id")
+  action    String   // LOGIN, LOGOUT, CREATE_PROJECT, DELETE_FILE, etc.
+  category  String   @default("INFO") // INFO | WARNING | ERROR | SECURITY
+  details   String?
+  ipAddress String?  @map("ip_address")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}

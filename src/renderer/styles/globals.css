@@ -1,0 +1,149 @@
+/* ============================================================
+   Tailwind base + Khmer AI Coding Agent custom layer
+   ============================================================ */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---- Google Fonts are loaded in index.html ---- */
+
+/* ---- Base resets ---- */
+@layer base {
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html, body, #root {
+    @apply w-full h-full overflow-hidden;
+  }
+
+  body {
+    @apply font-khmer antialiased select-none;
+    background-color: #0f0f1a;
+    color: #e8e8f0;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar          { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track    { background: #1a1a2e; }
+  ::-webkit-scrollbar-thumb    { background: #404070; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #7c6af7; }
+}
+
+/* ---- Reusable component classes ---- */
+@layer components {
+
+  /* ---- Buttons ---- */
+  .btn {
+    @apply inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg border-0
+           font-khmer text-[13px] font-medium cursor-pointer transition-all duration-150
+           outline-none whitespace-nowrap;
+  }
+  .btn:focus-visible { @apply ring-2 ring-primary-500 ring-offset-2 ring-offset-surface-900; }
+  .btn:disabled      { @apply opacity-50 cursor-not-allowed pointer-events-none; }
+
+  .btn-primary  {
+    @apply bg-primary-500 text-white;
+    &:hover  { @apply bg-primary-400 shadow-accent; }
+    &:active { @apply scale-[0.98]; }
+  }
+  .btn-secondary {
+    @apply bg-surface-600 text-[#e8e8f0] border border-[#2a2a45];
+    &:hover { @apply bg-surface-500 border-[#404070]; }
+  }
+  .btn-danger {
+    @apply bg-red-500 text-white;
+    &:hover { @apply bg-red-600; }
+  }
+  .btn-ghost {
+    @apply bg-transparent text-[#9090b0];
+    &:hover { @apply bg-surface-500 text-[#e8e8f0]; }
+  }
+  .btn-sm  { @apply px-2.5 py-1 text-xs; }
+  .btn-lg  { @apply px-6 py-2.5 text-[15px]; }
+
+  /* ---- Inputs ---- */
+  .input {
+    @apply w-full bg-surface-800 border border-[#2a2a45] rounded-lg
+           text-[#e8e8f0] font-khmer text-sm px-3 py-2
+           outline-none transition-all duration-150;
+    &:focus        { @apply border-primary-500 ring-2 ring-primary-500/20; }
+    &::placeholder { color: #606080; }
+  }
+
+  /* ---- Cards ---- */
+  .card {
+    @apply bg-surface-600 border border-[#2a2a45] rounded-xl p-4;
+  }
+
+  /* ---- Badges ---- */
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold;
+  }
+  .badge-success { @apply bg-green-500/15 text-green-400; }
+  .badge-error   { @apply bg-red-500/15   text-red-400;   }
+  .badge-warning { @apply bg-amber-500/15 text-amber-400; }
+  .badge-info    { @apply bg-blue-500/15  text-blue-400;  }
+  .badge-purple  { @apply bg-primary-500/15 text-primary-400; }
+
+  /* ---- Spinner ---- */
+  .spinner {
+    @apply inline-block w-4 h-4 border-2 border-[#2a2a45] border-t-primary-500 rounded-full animate-spin-fast;
+  }
+
+  /* ---- Divider ---- */
+  .divider { @apply h-px bg-[#2a2a45] my-3; }
+
+  /* ---- Modal ---- */
+  .modal-overlay {
+    @apply fixed inset-0 bg-black/70 z-[1000] flex items-center justify-center animate-fade-in;
+  }
+  .modal {
+    @apply bg-surface-600 border border-[#2a2a45] rounded-2xl p-6
+           min-w-[400px] max-w-[90vw] max-h-[80vh] overflow-auto
+           shadow-card animate-slide-up;
+  }
+  .modal-header {
+    @apply flex items-center justify-between mb-4;
+  }
+  .modal-title  { @apply text-base font-semibold text-[#e8e8f0]; }
+
+  /* ---- Empty state ---- */
+  .empty-state {
+    @apply flex flex-col items-center justify-center gap-3 p-12
+           text-[#606080] text-center;
+  }
+  .empty-state-icon { @apply text-5xl opacity-50; }
+
+  /* ---- Toast ---- */
+  .toast-container {
+    @apply fixed bottom-6 right-6 z-[9999] flex flex-col gap-2;
+  }
+  .toast {
+    @apply bg-surface-600 border border-[#2a2a45] rounded-lg px-4 py-3
+           min-w-[280px] max-w-[400px] shadow-card flex items-center gap-2.5
+           animate-toast-in;
+  }
+  .toast-success { @apply border-l-2 border-l-green-400; }
+  .toast-error   { @apply border-l-2 border-l-red-400;   }
+  .toast-warning { @apply border-l-2 border-l-amber-400; }
+  .toast-info    { @apply border-l-2 border-l-blue-400;  }
+
+  /* ---- Sidebar nav button ---- */
+  .nav-item {
+    @apply w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg border-none
+           text-[#9090b0] text-[13px] font-khmer cursor-pointer
+           transition-all duration-150 mb-0.5 bg-transparent;
+    border-left: 3px solid transparent;
+  }
+  .nav-item:hover  { @apply bg-surface-500 text-[#e8e8f0]; }
+  .nav-item.active {
+    @apply bg-surface-400 text-[#e8e8f0];
+    border-left-color: #7c6af7;
+  }
+}
+
+/* ---- Monaco Editor dark background ---- */
+.monaco-editor, .monaco-editor-background {
+  background-color: #0f0f1a !important;
+}
