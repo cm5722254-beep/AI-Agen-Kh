@@ -59,8 +59,8 @@ Default SUPER_ADMIN credentials (auto-created on first run):
 
 | Field | Value |
 |-------|-------|
-| **Email** | `cm5722254@gmail.com` |
-| **Password** | `@Iam_Cheatm2` |
+| **Email** | `` |
+| **Password** | `` |
 | **Role** | `SUPER_ADMIN` |
 
 > ⚠️ **Security**: Change the password after first login via Settings → Change Password.
